@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>IoT Device Survival Game</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --accent:#4ade80; --muted:#94a3b8; --danger:#fb7185; --glass: rgba(255,255,255,0.03);
+      --glass-2: rgba(255,255,255,0.02);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071021 0%, #0b1220 100%);color:#e6eef8}
+    .wrap{max-width:1100px;margin:28px auto;padding:20px}
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between}
+    h1{font-size:20px;margin:0}
+    .subtitle{color:var(--muted);font-size:13px}
+
+    .grid{display:grid;grid-template-columns:380px 1fr;gap:18px;margin-top:20px}
+
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.015));padding:16px;border-radius:12px;box-shadow:0 6px 20px rgba(2,6,23,0.6)}
+
+    /* left panel */
+    .controls h3{margin:0 0 10px 0}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type=number],select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+    .btn{display:inline-block;padding:8px 12px;border-radius:8px;background:var(--accent);color:#021018;font-weight:600;border:none;cursor:pointer;margin-right:8px}
+    .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+
+    .devices-list{margin-top:12px}
+    .device-card{background:var(--glass);padding:10px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;gap:10px}
+    .device-name{font-weight:700}
+    .resources{display:flex;gap:8px;margin-left:auto}
+    .res{font-size:13px;padding:6px 8px;border-radius:6px;background:var(--glass-2);color:var(--muted)}
+
+    /* right panel */
+    .game-area{display:flex;flex-direction:column;gap:12px}
+    .task-row{display:flex;gap:8px;flex-wrap:wrap}
+    .task{padding:10px;border-radius:10px;background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));cursor:pointer;border:1px solid rgba(255,255,255,0.03)}
+    .task:hover{transform:translateY(-3px)}
+    .task strong{display:block}
+    .events{display:flex;gap:8px}
+
+    .log{max-height:240px;overflow:auto;padding:10px;border-radius:8px;background:rgba(0,0,0,0.12);font-size:13px}
+
+    footer{margin-top:18px;color:var(--muted);font-size:13px;display:flex;justify-content:space-between;align-items:center}
+
+    /* small */
+    @media (max-width:980px){.grid{grid-template-columns:1fr;}.wrap{padding:12px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>IoT Device Survival — Interactive Demo</h1>
+        <div class="subtitle">Simulate resource usage and see why IoT OS must be lightweight & power-aware</div>
+      </div>
+      <div>
+        <button id="resetAll" class="btn secondary">Reset Game</button>
+        <button id="downloadBtn" class="btn">Download HTML</button>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="card controls">
+        <h3>Setup</h3>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="flex:1">
+            <label for="deviceCount">Number of devices (2-6)</label>
+            <input id="deviceCount" type="number" min="2" max="6" value="4" />
+          </div>
+          <div style="width:170px">
+            <label for="rounds">Rounds to play</label>
+            <input id="rounds" type="number" min="3" max="20" value="8" />
+          </div>
+        </div>
+
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <button id="createDevices" class="btn">Create Devices</button>
+          <button id="startGame" class="btn">Start Game</button>
+          <button id="nextRound" class="btn secondary">Next Round</button>
+        </div>
+
+        <h3 style="margin-top:14px">Devices</h3>
+        <div class="devices-list" id="devicesList">
+          <!-- device cards inserted here -->
+        </div>
+
+        <h3 style="margin-top:8px">Game Controls</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="lowPowerMode" class="btn secondary">Toggle Low Power Mode</button>
+          <button id="securityPatch" class="btn secondary">Force Security Patch</button>
+          <button id="randomEvent" class="btn secondary">Trigger Random Event</button>
+        </div>
+      </section>
+
+      <section class="card game-area">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <strong>Tasks (click to assign to currently selected device)</strong>
+            <div class="subtitle">Each task reduces resources — battery is critical.</div>
+          </div>
+          <div>
+            <div style="font-size:14px">Round <span id="roundCounter">0</span> / <span id="roundTotal">0</span></div>
+          </div>
+        </div>
+
+        <div class="task-row" id="taskRow">
+          <!-- tasks -->
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;justify-content:space-between">
+          <div>
+            <strong>Events / Announcements</strong>
+            <div class="subtitle">Events simulate OS-level changes (low power, updates, attacks).</div>
+          </div>
+          <div>
+            <button id="autoPlay" class="btn secondary">Auto-play Rounds</button>
+            <button id="showScores" class="btn">Show Scores</button>
+          </div>
+        </div>
+
+        <div class="events" style="margin-top:8px">
+          <div class="card" style="flex:1;padding:10px">
+            <div style="font-weight:700;margin-bottom:8px">Log</div>
+            <div id="log" class="log"></div>
+          </div>
+
+          <div class="card" style="width:300px">
+            <div style="font-weight:700;margin-bottom:8px">Selected Device</div>
+            <div id="selectedCard">None — click a device</div>
+            <div style="margin-top:10px">
+              <button id="assignTaskBtn" class="btn">Assign selected task</button>
+              <button id="putToSleep" class="btn secondary">Put device to Sleep</button>
+            </div>
+          </div>
+        </div>
+
+        <footer>
+          <div>Tip: try toggling Low Power Mode — tasks cost less battery but may take more CPU.</div>
+          <div id="gameStatus">Not started</div>
+        </footer>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // --- game config ---
+    const TASKS = [
+      {id:'send', name:'Send data to cloud', cpu:1, mem:2, bat:3},
+      {id:'bg', name:'Run background app', cpu:2, mem:3, bat:2},
+      {id:'enc', name:'Encrypt communication', cpu:2, mem:1, bat:3},
+      {id:'sensor', name:'Process sensor reading', cpu:1, mem:1, bat:2},
+      {id:'play', name:'Play music/file', cpu:2, mem:2, bat:3},
+      {id:'update', name:'Security update', cpu:3, mem:2, bat:4},
+      {id:'sleep', name:'Idle / Sleep', cpu:0, mem:0, bat:-1} // negative means battery saved (recharge small)
+    ];
+
+    const DEFAULT_RES = {cpu:5, mem:10, bat:15};
+    const DEVICE_POOL = [
+      'Smartwatch','Smart Bulb','Smart Speaker','Car Sensor','Security Camera','Weather Node'
+    ];
+
+    // --- state ---
+    let devices = [];
+    let selectedDeviceId = null;
+    let selectedTaskId = null;
+    let round = 0;
+    let totalRounds = 8;
+    let lowPowerMode = false;
+    let autoPlayInterval = null;
+
+    // --- helpers ---
+    const $ = (id)=>document.getElementById(id);
+    const logEl = $('log');
+    function log(msg){
+      const time = new Date().toLocaleTimeString();
+      const el = document.createElement('div'); el.textContent = `[${time}] ${msg}`;
+      logEl.prepend(el);
+    }
+
+    function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
+
+    // --- UI build ---
+    function renderTasks(){
+      const row = $('taskRow'); row.innerHTML='';
+      TASKS.forEach(t=>{
+        const btn = document.createElement('div'); btn.className='task'; btn.dataset.id=t.id;
+        btn.innerHTML = `<strong>${t.name}</strong><div class="subtitle">CPU ${t.cpu} • MEM ${t.mem} • BAT ${t.bat}</div>`;
+        btn.onclick = ()=>{
+          selectedTaskId = t.id; highlightSelectedTask(); log(`Task selected: ${t.name}`);
+        };
+        row.appendChild(btn);
+      });
+    }
+
+    function highlightSelectedTask(){
+      document.querySelectorAll('.task').forEach(el=>el.style.borderColor = 'rgba(255,255,255,0.03)');
+      if(selectedTaskId){
+        const el = document.querySelector(`[data-id="${selectedTaskId}"]`);
+        if(el) el.style.borderColor = 'var(--accent)';
+      }
+    }
+
+    function createDevices(){
+      const count = clamp(parseInt($('deviceCount').value)||4,2,6);
+      devices = [];
+      for(let i=0;i<count;i++){
+        devices.push({
+          id:cryptoRandomId(),
+          name: DEVICE_POOL[i] || `Device ${i+1}`,
+          cpu:DEFAULT_RES.cpu,
+          mem:DEFAULT_RES.mem,
+          bat:DEFAULT_RES.bat,
+          alive:true
+        });
+      }
+      totalRounds = clamp(parseInt($('rounds').value)||8,1,40);
+      $('roundTotal').textContent = totalRounds;
+      round = 0; $('roundCounter').textContent = round;
+      renderDevices();
+      log(`Created ${devices.length} devices`);
+      $('gameStatus').textContent = 'Ready';
+    }
+
+    function renderDevices(){
+      const list = $('devicesList'); list.innerHTML='';
+      devices.forEach(d=>{
+        const el = document.createElement('div'); el.className='device-card'; el.dataset.id=d.id;
+        el.onclick = ()=>selectDevice(d.id);
+        el.innerHTML = `<div style="width:10px;height:40px;border-radius:6px;background:${d.alive ? 'linear-gradient(180deg,#34d399,#059669)' : '#555'}"></div>
+          <div>
+            <div class="device-name">${d.name}</div>
+            <div class="subtitle" style="font-size:12px">${d.alive ? 'Active' : 'Dead'}</div>
+          </div>
+          <div class="resources">
+            <div class="res">CPU: <span class="cpu">${d.cpu}</span></div>
+            <div class="res">MEM: <span class="mem">${d.mem}</span></div>
+            <div class="res">BAT: <span class="bat">${d.bat}</span></div>
+          </div>`;
+        list.appendChild(el);
+      });
+      updateSelectedCardUI();
+    }
+
+    function selectDevice(id){
+      selectedDeviceId = id; updateSelectedCardUI();
+      log(`Selected device: ${devices.find(d=>d.id===id)?.name}`);
+    }
+
+    function updateSelectedCardUI(){
+      const card = $('selectedCard');
+      const d = devices.find(x=>x.id===selectedDeviceId);
+      if(!d){ card.innerHTML = 'None — click a device'; return }
+      card.innerHTML = `
+        <div style="font-weight:700">${d.name} ${d.alive? '' : '(dead)'}</div>
+        <div class="subtitle">CPU ${d.cpu} • MEM ${d.mem} • BAT ${d.bat}</div>
+      `;
+    }
+
+    function applyTaskToDevice(taskId, deviceId){
+      const task = TASKS.find(t=>t.id===taskId);
+      const dev = devices.find(d=>d.id===deviceId);
+      if(!task || !dev || !dev.alive) return false;
+
+      // cost modifiers
+      const cpuCost = lowPowerMode ? Math.max(0, task.cpu - 1) : task.cpu;
+      const memCost = task.mem;
+      const batCost = lowPowerMode ? Math.max(0, task.bat - 1) : task.bat;
+
+      // applying
+      dev.cpu = clamp(dev.cpu - cpuCost, 0, DEFAULT_RES.cpu);
+      dev.mem = clamp(dev.mem - memCost, 0, DEFAULT_RES.mem);
+      dev.bat = clamp(dev.bat - batCost, -5, DEFAULT_RES.bat);
+
+      // if sleep task, battery negative cost means gain
+      if(task.id === 'sleep'){
+        dev.bat = Math.min(DEFAULT_RES.bat, dev.bat + Math.abs(batCost));
+      }
+
+      // check death
+      if(dev.bat <= 0){ dev.alive = false; log(`${dev.name} ran out of battery and died.`); }
+
+      renderDevices();
+      log(`${dev.name} performed: ${task.name} (CPU -${cpuCost}, MEM -${memCost}, BAT -${batCost})`);
+      return true;
+    }
+
+    function nextRound(){
+      if(devices.length===0) return;
+      if(round >= totalRounds){ log('All rounds finished'); return }
+      round++; $('roundCounter').textContent = round;
+
+      // each round, presenter picks tasks (or auto) — here we let groups choose via selection
+      log(`--- Round ${round} start ---`);
+
+      // If in autoplay, automatically pick tasks for each alive device
+      devices.filter(d=>d.alive).forEach(dev=>{
+        // default auto-strategy: if battery low -> sleep; else random task
+        let taskToUse;
+        if(dev.bat <= 4) taskToUse = 'sleep';
+        else taskToUse = TASKS[Math.floor(Math.random()*TASKS.length)].id;
+        applyTaskToDevice(taskToUse, dev.id);
+      });
+
+      // random environment drain
+      devices.forEach(d=>{ if(d.alive){ d.bat = clamp(d.bat - 0, -5, DEFAULT_RES.bat); }});
+
+      // summary
+      const aliveCount = devices.filter(d=>d.alive).length;
+      $('gameStatus').textContent = `${aliveCount} devices alive`;
+
+      if(round === totalRounds){ log('Game ended — show results'); showResults(); }
+    }
+
+    function showResults(){
+      const sorted = [...devices].sort((a,b)=> (b.alive?1:0) - (a.alive?1:0) || (b.bat - a.bat));
+      let msg = 'Final results:\n';
+      sorted.forEach((d,i)=> msg += `${i+1}. ${d.name} — ${d.alive? 'Alive' : 'Dead'} — BAT ${d.bat}\n`);
+      alert(msg);
+      log('Displayed final results');
+    }
+
+    function cryptoRandomId(){return 'id-'+Math.random().toString(36).slice(2,9)}
+
+    // events
+    function toggleLowPower(){ lowPowerMode = !lowPowerMode; log(`Low Power Mode ${lowPowerMode ? 'enabled' : 'disabled'}`); $('lowPowerMode').textContent = lowPowerMode ? 'Low Power: ON' : 'Toggle Low Power Mode'; }
+    function forceSecurityPatch(){ devices.filter(d=>d.alive).forEach(d=>{ d.cpu = Math.max(0,d.cpu-1); d.mem = Math.max(0,d.mem-1); d.bat = Math.max(0,d.bat-2); }); log('Security patch applied: all devices spent resources'); renderDevices(); }
+    function randomEvent(){ const r = Math.random(); if(r<0.33){ log('Network spike: all devices consume +1 CPU'); devices.forEach(d=>d.cpu = Math.max(0,d.cpu-1)); } else if(r<0.66){ log('Power surge: some devices lose battery'); devices.forEach(d=>{ if(Math.random()>0.6) d.bat = Math.max(-5,d.bat-3); }); } else { log('Optimization pushed: some devices regain 1 battery'); devices.forEach(d=>{ if(Math.random()>0.6) d.bat = Math.min(DEFAULT_RES.bat,d.bat+1); }); } renderDevices(); }
+
+    // buttons
+    document.getElementById('createDevices').addEventListener('click', ()=>{ createDevices(); });
+    document.getElementById('startGame').addEventListener('click', ()=>{ if(devices.length===0) createDevices(); round=0; $('roundCounter').textContent=round; $('gameStatus').textContent='Running'; log('Game started'); nextRound(); });
+    document.getElementById('nextRound').addEventListener('click', ()=> nextRound());
+    document.getElementById('lowPowerMode').addEventListener('click', ()=>{ toggleLowPower(); });
+    document.getElementById('securityPatch').addEventListener('click', ()=>{ forceSecurityPatch(); });
+    document.getElementById('randomEvent').addEventListener('click', ()=>{ randomEvent(); });
+    document.getElementById('resetAll').addEventListener('click', ()=>{ devices=[]; selectedDeviceId=null; selectedTaskId=null; renderDevices(); log('Game reset'); $('gameStatus').textContent='Reset'; });
+
+    document.getElementById('assignTaskBtn').addEventListener('click', ()=>{
+      if(!selectedDeviceId || !selectedTaskId){ alert('Select a device and a task first.'); return }
+      applyTaskToDevice(selectedTaskId, selectedDeviceId);
+    });
+    document.getElementById('putToSleep').addEventListener('click', ()=>{
+      if(!selectedDeviceId) return; applyTaskToDevice('sleep', selectedDeviceId);
+    });
+
+    document.getElementById('autoPlay').addEventListener('click', (e)=>{
+      if(autoPlayInterval){ clearInterval(autoPlayInterval); autoPlayInterval=null; e.target.textContent='Auto-play Rounds'; log('Auto-play stopped'); return }
+      autoPlayInterval = setInterval(()=>{
+        if(round >= totalRounds){ clearInterval(autoPlayInterval); autoPlayInterval=null; log('Auto-play finished'); return }
+        nextRound();
+      }, 1200);
+      e.target.textContent='Stop Auto-play'; log('Auto-play started');
+    });
+
+    document.getElementById('showScores').addEventListener('click', ()=> showResults());
+
+    // download html
+    document.getElementById('downloadBtn').addEventListener('click', ()=>{
+      const blob = new Blob([document.documentElement.outerHTML], {type:'text/html'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'iot-device-survival.html'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    // initial render
+    renderTasks();
+    createDevices();
+  </script>
+</body>
+</html>
